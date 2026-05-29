@@ -121,8 +121,11 @@ export default function RegisterPage() {
                 <p className="font-body text-sm leading-relaxed mb-2 max-w-xs mx-auto" style={{ color: 'rgba(255,255,255,.55)' }}>
                   Tu cuenta está <strong style={{ color: '#ebc32b' }}>pendiente de aprobación</strong> por el administrador.
                 </p>
+                <p className="font-body text-sm leading-relaxed mb-2 max-w-xs mx-auto" style={{ color: 'rgba(255,255,255,.55)' }}>
+                  Revisá tu <strong style={{ color: '#ebc32b' }}>correo electrónico</strong> y hacé clic en el enlace para confirmar tu registro.
+                </p>
                 <p className="font-body text-sm leading-relaxed mb-8 max-w-xs mx-auto" style={{ color: 'rgba(255,255,255,.4)' }}>
-                  Te avisaremos cuando esté activa y ya puedas ingresar.
+                  Si no lo encontrás, revisá la carpeta de spam o correo no deseado. Te avisaremos cuando tu cuenta esté activa.
                 </p>
 
                 {/* Divider */}
