@@ -525,8 +525,8 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-                    <div className="flex items-center gap-2.5 p-3 bg-gradient-to-r from-slate-50 to-white border-r border-slate-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-stretch">
+                    <div className="flex items-center gap-2.5 p-3 bg-gradient-to-r from-slate-50 to-white border-b sm:border-b-0 sm:border-r border-slate-200">
                       {match.bandera_local && (
                         <img src={match.bandera_local} alt="" className="w-10 h-7 object-cover rounded shadow-sm flex-shrink-0" />
                       )}
@@ -536,7 +536,7 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                             {match.codigo_local}
                           </div>
                         )}
-                        <div className="text-sm font-black text-slate-900 leading-tight truncate">
+                        <div className="text-sm font-black text-slate-900 leading-tight break-words">
                           {match.equipo_local}
                         </div>
                       </div>
@@ -566,20 +566,20 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                       />
                     </div>
 
-                    <div className="flex items-center gap-2.5 p-3 text-right bg-gradient-to-l from-slate-50 to-white border-l border-slate-200">
+                    <div className="flex items-center gap-2.5 p-3 sm:text-right bg-gradient-to-l from-slate-50 to-white border-t sm:border-t-0 sm:border-l border-slate-200">
+                      {match.bandera_visitante && (
+                        <img src={match.bandera_visitante} alt="" className="sm:order-last w-10 h-7 object-cover rounded shadow-sm flex-shrink-0" />
+                      )}
                       <div className="flex-1 min-w-0">
                         {match.codigo_visitante && (
                           <div className="text-[9px] font-black tracking-wider text-yellow-600 uppercase mb-0.5">
                             {match.codigo_visitante}
                           </div>
                         )}
-                        <div className="text-sm font-black text-slate-900 leading-tight truncate">
+                        <div className="text-sm font-black text-slate-900 leading-tight break-words">
                           {match.equipo_visitante}
                         </div>
                       </div>
-                      {match.bandera_visitante && (
-                        <img src={match.bandera_visitante} alt="" className="w-10 h-7 object-cover rounded shadow-sm flex-shrink-0" />
-                      )}
                     </div>
                   </div>
 
