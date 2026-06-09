@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useBets } from '../../hooks/useBets.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
-import { timeLeft, isBetOpen } from '../../utils/index.js'
+import { fmtFecha, getMatchStartTime, timeLeft, isMatchPredictable, matchPredictionState } from '../../utils/index.js'
 
 function esEliminatoria(fase) {
   if (!fase) return false
@@ -128,10 +128,14 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
 
   if (!bet) return null
 
-  const open = isBetOpen(bet)
+  const betEnabled = bet.estado === 'abierta'
+  const availableMatches = bet.partidos?.filter(m => betEnabled && isMatchPredictable(m)) || []
+  const open = betEnabled && availableMatches.length > 0
   const remaining = timeLeft(bet.fecha_cierre)
   const isClosingSoon = open && remaining !== 'Cerrada' && !remaining.includes('d')
   const totalMatches = bet.partidos?.length || 0
+  const availableCount = availableMatches.length
+  const closedCount = Math.max(totalMatches - availableCount, 0)
 
   function predicionCompleta(match) {
     const sc = scores[match.id]
@@ -145,9 +149,14 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
   }
 
   const filledCount = bet.partidos?.filter(predicionCompleta).length || 0
+  const availableFilledCount = availableMatches.filter(predicionCompleta).length
   const hadPredictions = bet.partidos?.some(p => predictions?.[p.id]) ?? false
-  const progressPct = totalMatches > 0 ? (filledCount / totalMatches) * 100 : 0
-  const pendingCount = totalMatches - filledCount
+  const progressPct = availableCount > 0 ? (availableFilledCount / availableCount) * 100 : 0
+  const pendingCount = availableCount - availableFilledCount
+  const nextClosingMatch = availableMatches
+    .filter(m => m.fecha_partido || m.fecha_hora)
+    .slice()
+    .sort((a, b) => getMatchStartTime(a) - getMatchStartTime(b))[0]
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -159,6 +168,10 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
     const empatesSinClasificado = []
 
     for (const match of (bet.partidos || [])) {
+      if (!betEnabled || !isMatchPredictable(match)) {
+        continue
+      }
+
       const vals = scores[match.id]
       if (!vals) continue
       const pl = parseInt(vals.local, 10)
@@ -203,6 +216,8 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
   }
 
   function updateScore(partidoId, side, value) {
+    const match = bet.partidos?.find(p => p.id === partidoId)
+    if (!betEnabled || !match || !isMatchPredictable(match) || estaBloqueado) return
     if (value !== '' && !/^\d{0,2}$/.test(value)) return
     setScores(prev => ({ ...prev, [partidoId]: { ...prev[partidoId], [side]: value } }))
     
@@ -223,6 +238,8 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
   }
 
   function updateClasificado(partidoId, codigo) {
+    const match = bet.partidos?.find(p => p.id === partidoId)
+    if (!betEnabled || !match || !isMatchPredictable(match) || estaBloqueado) return
     setClasificados(prev => ({ ...prev, [partidoId]: codigo }))
   }
 
@@ -262,14 +279,14 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
 
           <div className="grid grid-cols-2 gap-3 p-5 border-b border-white/10 flex-shrink-0">
             <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur border border-white/20 rounded-xl p-4 hover:scale-105 transition-transform">
-              <div className="text-4xl font-black leading-none text-yellow-400 mb-2">{filledCount}</div>
-              <div className="text-[10px] font-bold tracking-wider text-slate-300 uppercase">Completadas</div>
+              <div className="text-4xl font-black leading-none text-yellow-400 mb-2">{availableFilledCount}</div>
+              <div className="text-[10px] font-bold tracking-wider text-slate-300 uppercase">Editables listas</div>
             </div>
             <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur border border-white/20 rounded-xl p-4 hover:scale-105 transition-transform">
               <div className={`text-4xl font-black leading-none mb-2 ${pendingCount === 0 ? 'text-green-400' : 'text-slate-400'}`}>
                 {pendingCount}
               </div>
-              <div className="text-[10px] font-bold tracking-wider text-slate-300 uppercase">Pendientes</div>
+              <div className="text-[10px] font-bold tracking-wider text-slate-300 uppercase">Por cargar</div>
             </div>
           </div>
 
@@ -299,10 +316,23 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
             <div className="mt-3 text-[13px] text-slate-300 leading-relaxed">
               {open
                 ? hadPredictions
-                  ? 'Revisá o modificá tus predicciones antes del cierre.'
-                  : 'Cargá tus predicciones para cada partido.'
-                : 'La apuesta está cerrada. Modo solo lectura.'}
+                  ? 'Revisá o modificá los partidos que todavía no empezaron.'
+                  : 'Cargá tus predicciones en los partidos disponibles.'
+                : 'No quedan partidos disponibles. Modo solo lectura.'}
             </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-wider">
+              <span className="rounded-lg border border-green-400/25 bg-green-400/10 px-2.5 py-2 text-green-300">
+                {availableCount} disponibles
+              </span>
+              <span className="rounded-lg border border-slate-500/30 bg-slate-700/40 px-2.5 py-2 text-slate-300">
+                {closedCount} cerrados
+              </span>
+            </div>
+            {nextClosingMatch && (
+              <div className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+                Proximo cierre: <span className="font-bold text-yellow-300">{fmtFecha(nextClosingMatch.fecha_partido || nextClosingMatch.fecha_hora)}</span>
+              </div>
+            )}
           </div>
 
           <nav className="flex-1 overflow-y-auto p-3 pb-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
@@ -312,6 +342,7 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
             {bet.partidos?.map((m, idx) => {
               const done = predicionCompleta(m)
               const live = m.estado === 'en_vivo'
+              const available = betEnabled && isMatchPredictable(m)
               const isActive = idx === activeMatchIdx
               return (
                 <button
@@ -322,8 +353,10 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                       ? 'bg-yellow-500/20 border-l-yellow-400 shadow-lg shadow-yellow-500/20' 
                       : done 
                         ? 'border-l-yellow-500 hover:bg-white/10 bg-white/5' 
-                        : live 
-                          ? 'border-l-red-500 hover:bg-white/10 bg-red-500/10 animate-pulse'
+                          : live 
+                            ? 'border-l-red-500 hover:bg-white/10 bg-red-500/10 animate-pulse'
+                            : !available
+                              ? 'border-l-slate-600 bg-white/5 opacity-70'
                           : 'border-l-transparent hover:bg-white/5'
                   }`}
                   onClick={() => scrollToMatch(m.id, idx)}
@@ -331,8 +364,10 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                   <span className={`flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold flex-shrink-0 ${
                     done 
                       ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-slate-900 shadow-md' 
-                      : live 
-                        ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-md'
+                        : live 
+                          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-md'
+                          : !available
+                            ? 'bg-slate-700 text-slate-400 border border-slate-600'
                         : 'bg-white/10 text-slate-400 border border-white/20'
                   }`}>
                     {idx + 1}
@@ -414,6 +449,7 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
               {bet.partidos?.map((m, idx) => {
                 const done = predicionCompleta(m)
                 const live = m.estado === 'en_vivo'
+                const available = betEnabled && isMatchPredictable(m)
                 const isActive = idx === activeMatchIdx
                 return (
                   <button
@@ -426,6 +462,8 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                           ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 border-yellow-500 text-slate-900'
                           : live 
                             ? 'bg-gradient-to-br from-red-500 to-red-600 border-red-500 text-white animate-pulse'
+                            : !available
+                              ? 'bg-slate-100 border-slate-300 text-slate-400'
                             : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                     onClick={() => scrollToMatch(m.id, idx)}
@@ -471,7 +509,9 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
             {bet.partidos?.map((match, idx) => {
               const isLive = match.estado === 'en_vivo'
               const isFinished = match.estado === 'finalizado'
-              const isDisabled = !open || isLive || isFinished || estaBloqueado
+              const predictionState = matchPredictionState(match)
+              const canPredictMatch = betEnabled && isMatchPredictable(match) && !estaBloqueado
+              const isDisabled = !canPredictMatch
               const sc = scores[match.id] || { local: '', visitante: '' }
               const hasScore = sc.local !== '' && sc.visitante !== ''
               const elim = esEliminatoria(match.fase)
@@ -520,6 +560,16 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                           OK
+                        </span>
+                      )}
+                      {!isLive && !isFinished && !canPredictMatch && (
+                        <span className="inline-flex items-center bg-slate-600 text-white text-[8px] font-black tracking-wider px-2 py-0.5 rounded-full">
+                          {predictionState.label.toUpperCase()}
+                        </span>
+                      )}
+                      {canPredictMatch && !completo && (
+                        <span className="inline-flex items-center bg-green-500 text-white text-[8px] font-black tracking-wider px-2 py-0.5 rounded-full">
+                          DISPONIBLE
                         </span>
                       )}
                     </div>
@@ -681,6 +731,25 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                       </div>
                     </div>
                   )}
+                  {isDisabled && !isLive && !isFinished && (
+                    <div className="px-3 py-2.5 bg-slate-50 border-t border-slate-200">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 text-[11px] font-bold text-slate-500">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 6v6l4 2" />
+                        </svg>
+                        {predictionState.label}. Este partido ya no admite cambios.
+                      </div>
+                    </div>
+                  )}
+                  {canPredictMatch && (
+                    <div className="px-3 py-2 bg-green-50 border-t border-green-100">
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-green-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        Disponible hasta {fmtFecha(match.fecha_partido || match.fecha_hora)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -695,8 +764,8 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                     <div className="flex items-baseline justify-between text-[9px] tracking-wider uppercase mb-2">
                       <span className="text-slate-400 font-bold">Progreso</span>
                       <span className="text-white font-bold">
-                        <strong className="text-yellow-400 text-lg mr-1 font-black">{filledCount}</strong>
-                        <span className="text-slate-400">de</span> {totalMatches}
+                        <strong className="text-yellow-400 text-lg mr-1 font-black">{availableFilledCount}</strong>
+                        <span className="text-slate-400">de</span> {availableCount}
                       </span>
                     </div>
                     <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -721,7 +790,7 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
                   <button
                     type="submit"
                     className="flex-1 sm:flex-none px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/50 border border-yellow-400 hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none transition-all inline-flex items-center justify-center gap-2 active:scale-95"
-                    disabled={loading || filledCount === 0}
+                    disabled={loading || availableFilledCount === 0}
                   >
                     {loading ? (
                       <>
@@ -744,7 +813,7 @@ export default function PredictModal({ bet, onSubmit, onClose, loading }) {
 
               {open && !estaBloqueado && (
                 <div className="col-span-full text-[10px] text-slate-400 text-center tracking-wide">
-                  💡 Podés modificar mientras esté abierta
+                  Podés modificar solo los partidos que todavía no empezaron
                 </div>
               )}
               {open && estaBloqueado && (

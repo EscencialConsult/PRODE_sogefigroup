@@ -17,6 +17,7 @@
    ============================================================ */
 
 import { createClient } from '@supabase/supabase-js'
+import { getMatchStartTime } from '../utils/index.js'
 
 // ── Configuración ─────────────────────────────────────────
 const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL
@@ -661,6 +662,22 @@ const predicciones = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('No autenticado')
 
+    const { data: partido, error: errPartido } = await supabase
+      .from('partidos')
+      .select('fecha_hora, estado')
+      .eq('id', data.partido_id)
+      .single()
+    checkError(errPartido, 'predicciones.guardar (partido)')
+
+    const estado = String(partido?.estado || '').trim().toLowerCase()
+    const inicio = getMatchStartTime({ fecha_hora: partido?.fecha_hora })
+    if (
+      ['en_vivo', 'finalizado', 'cancelado', 'suspendido'].includes(estado) ||
+      (inicio && inicio <= Date.now())
+    ) {
+      throw new Error('Este partido ya comenzó y no admite más pronósticos.')
+    }
+
     const payload = {
       apuesta_id: data.apuesta_id,
       user_id: user.id,
@@ -802,6 +819,117 @@ const predicciones = {
       tabla: top,
       mi_posicion: miPosicion,
       esta_en_top: estaEnTop,
+    }
+  },
+
+  /**
+   * Ranking acumulado calculado en el frontend.
+   * Reutiliza el ranking de cada apuesta individual y agrupa por usuario.
+   * Las apuestas grupales se omiten porque su ranking es por area, no por persona.
+   */
+  tablaGlobal: async (opciones = {}) => {
+    const limit = Math.min(parseInt(opciones.limit) || 200, 200)
+    const apuestasResp = await apuestas.listar()
+    const todas = apuestasResp.apuestas || []
+    const estados = opciones.estados || null
+    const apuestaIds = Array.isArray(opciones.apuestaIds) && opciones.apuestaIds.length
+      ? new Set(opciones.apuestaIds.map(String))
+      : null
+    const candidatas = todas.filter(a => {
+      if (apuestaIds && !apuestaIds.has(String(a.id))) return false
+      if (estados && estados.length && !estados.includes(a.estado)) return false
+      return true
+    })
+
+    const resultados = await Promise.allSettled(
+      candidatas.map(a => predicciones.tabla(a.id, { limit: 200 }))
+    )
+
+    const acumulado = new Map()
+    let apuestasIncluidas = 0
+    let apuestasOmitidas = 0
+
+    resultados.forEach((res, idx) => {
+      if (res.status !== 'fulfilled') {
+        apuestasOmitidas += 1
+        return
+      }
+
+      const ranking = res.value
+      if (ranking.es_grupal) {
+        apuestasOmitidas += 1
+        return
+      }
+
+      const filas = ranking.tabla || []
+      if (!filas.length) return
+      apuestasIncluidas += 1
+
+      filas.forEach(u => {
+        const id = u.user_id
+        if (!id) return
+
+        const actual = acumulado.get(id) || {
+          user_id: id,
+          nombre: u.nombre || 'Sin nombre',
+          email: u.email || '',
+          puntos_totales: 0,
+          predicciones: 0,
+          aciertos_exactos: 0,
+          aciertos_diferencia: 0,
+          aciertos_resultado: 0,
+          aciertos_clasificado: 0,
+          apuestas_participadas: 0,
+          apuestas_ids: new Set(),
+        }
+
+        actual.puntos_totales += Number(u.puntos_totales || 0)
+        actual.predicciones += Number(u.predicciones || 0)
+        actual.aciertos_exactos += Number(u.aciertos_exactos || 0)
+        actual.aciertos_diferencia += Number(u.aciertos_diferencia || 0)
+        actual.aciertos_resultado += Number(u.aciertos_resultado || 0)
+        actual.aciertos_clasificado += Number(u.aciertos_clasificado || 0)
+        actual.apuestas_ids.add(candidatas[idx].id)
+        actual.apuestas_participadas = actual.apuestas_ids.size
+        acumulado.set(id, actual)
+      })
+    })
+
+    const rankingArr = Array.from(acumulado.values())
+      .map(u => ({ ...u, apuestas_ids: Array.from(u.apuestas_ids) }))
+      .sort((a, b) =>
+        b.puntos_totales - a.puntos_totales ||
+        b.apuestas_participadas - a.apuestas_participadas ||
+        String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es')
+      )
+
+    let posicionAnterior = 0
+    let puntosAnterior = null
+    rankingArr.forEach((u, idx) => {
+      if (puntosAnterior === u.puntos_totales) {
+        u.posicion = posicionAnterior
+      } else {
+        u.posicion = idx + 1
+        posicionAnterior = u.posicion
+        puntosAnterior = u.puntos_totales
+      }
+    })
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const miPosicion = user ? rankingArr.find(r => r.user_id === user.id) || null : null
+    const estaEnTop = miPosicion ? Number(miPosicion.posicion) <= limit : false
+
+    return {
+      ok: true,
+      es_global: true,
+      total: rankingArr.length,
+      limit,
+      tabla: rankingArr.slice(0, limit),
+      mi_posicion: miPosicion,
+      esta_en_top: estaEnTop,
+      apuestas_incluidas: apuestasIncluidas,
+      apuestas_omitidas: apuestasOmitidas,
+      apuestas_total: candidatas.length,
     }
   },
 }

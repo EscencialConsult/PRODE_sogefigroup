@@ -15,6 +15,7 @@ import AppShell from './AppShell.jsx'
 import { useBets } from '../hooks/useBets.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import PredictModal from '../components/user/PredictModal.jsx'
+import { isBetPredictable } from '../utils/index.js'
 
 /* ── helpers ── */
 function timeLeft(d){const diff=new Date(d)-Date.now();if(diff<=0)return'Cerrada';const h=Math.floor(diff/3600000);const m=Math.floor((diff%3600000)/60000);if(h>=24)return`${Math.floor(h/24)}d ${h%24}h`;if(h>0)return`${h}h ${m}m`;return`${m}m`}
@@ -22,9 +23,7 @@ const CARD_BASE={background:'#fff',border:'1px solid #f0eadb',borderRadius:16,bo
 const MUTED={fontSize:'.78rem',color:'#5f6e8a'}
 
 function isOpen(b){
-  if (b.estado !== 'abierta') return false
-  if (!b.fecha_cierre) return true
-  return new Date(b.fecha_cierre) > new Date()
+  return isBetPredictable(b)
 }
 const FILTERS=[
   {key:'todas', label:'Todas'},

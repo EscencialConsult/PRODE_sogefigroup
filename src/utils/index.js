@@ -164,6 +164,39 @@ export function isBetOpen(bet) {
   return new Date(bet.fecha_cierre) > new Date()
 }
 
+function normalizarEstadoPartido(estado) {
+  return String(estado || '').trim().toLowerCase()
+}
+
+export function getMatchStartTime(match) {
+  return fechaArgentinaATimestamp(match?.fecha_partido || match?.fecha_hora)
+}
+
+export function isMatchPredictable(match, now = Date.now()) {
+  const estado = normalizarEstadoPartido(match?.estado)
+  if (['en_vivo', 'finalizado', 'cancelado', 'suspendido'].includes(estado)) return false
+
+  const start = getMatchStartTime(match)
+  if (!start) return true
+  return start > now
+}
+
+export function matchPredictionState(match, now = Date.now()) {
+  const estado = normalizarEstadoPartido(match?.estado)
+  if (estado === 'en_vivo') return { key: 'live', label: 'En juego' }
+  if (estado === 'finalizado') return { key: 'finished', label: 'Finalizado' }
+  if (['cancelado', 'suspendido'].includes(estado)) return { key: 'blocked', label: 'No disponible' }
+
+  const start = getMatchStartTime(match)
+  if (start && start <= now) return { key: 'closed', label: 'Cerrado' }
+  return { key: 'open', label: 'Disponible' }
+}
+
+export function isBetPredictable(bet, now = Date.now()) {
+  if (bet?.estado !== 'abierta') return false
+  return (bet.partidos || []).some(match => isMatchPredictable(match, now))
+}
+
 /** Clases CSS para el estado de una apuesta */
 export function betStatusClass(estado) {
   return {

@@ -8,7 +8,7 @@ import { useState } from 'react'
 import AppShell from '../dashboard/AppShell.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBets } from '../hooks/useBets.jsx'
-import { isBetOpen, timeLeft } from '../utils/index.js'
+import { isBetPredictable, timeLeft } from '../utils/index.js'
 import { Link } from 'react-router-dom'
 import PredictModal from '../components/user/PredictModal.jsx'
 import Loading from '../hooks/Loading.jsx'
@@ -37,7 +37,7 @@ function StatCard({ label, value, sub, icon, gold = false, live = false }) {
 
 function BetRow({ bet, onPredict }) {
   const matchCount  = bet.partidos?.length || 0
-  const remaining   = isBetOpen(bet) ? timeLeft(bet.fecha_cierre) : 'Cerrada'
+  const remaining   = isBetPredictable(bet) ? timeLeft(bet.fecha_cierre) : 'Cerrada'
   const closingSoon = remaining !== 'Cerrada' && !remaining.includes('d')
   const hasLive     = bet.partidos?.some(p => p.estado === 'en_vivo')
   return (
@@ -160,7 +160,7 @@ export default function DashboardPage() {
   const [selectedBet, setSelectedBet] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const activeBets  = bets.filter(b => isBetOpen(b))
+  const activeBets  = bets.filter(b => isBetPredictable(b))
   const liveBets    = bets.filter(b => b.partidos?.some(p => p.estado === 'en_vivo'))
   const myPredCount = Object.keys(predictions).length
   const nombre      = (user?.nombre || '').split(' ')[0].toUpperCase()
