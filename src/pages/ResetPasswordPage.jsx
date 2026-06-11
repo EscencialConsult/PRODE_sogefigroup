@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import sheetsApi from '../services/sheetsApi.js'
 
 export default function ResetPasswordPage() {
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token')
-
-  // Estados de validación del token
+  // Estados de validación de la sesión de recovery
   const [validando, setValidando] = useState(true)
   const [tokenValido, setTokenValido] = useState(false)
   const [errorValidacion, setErrorValidacion] = useState(null)
@@ -18,26 +15,43 @@ export default function ResetPasswordPage() {
   const [error, setError]     = useState(null)
   const [done, setDone]       = useState(false)
 
-  // Validar el token al montar la pantalla
+  // Validar la sesión de recovery al montar la pantalla.
+  // En el flujo nativo de Supabase, el token viaja en el fragmento (#) de la URL
+  // y `detectSessionInUrl` lo consume automáticamente para crear una sesión
+  // temporal de recuperación. Eso puede tardar un instante, así que reintentamos
+  // la validación unas pocas veces antes de dar el link por inválido.
   useEffect(() => {
-    if (!token) {
-      setErrorValidacion('El link no incluye un token de recuperación.')
-      setValidando(false)
-      return
+    let cancelado = false
+
+    async function validar() {
+      const MAX_INTENTOS = 3
+      const ESPERA_MS = 600
+
+      for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+        try {
+          const data = await sheetsApi.auth.resetValidar()
+          if (cancelado) return
+          setTokenValido(true)
+          setUserInfo({ email: data.email, nombre: data.nombre })
+          setValidando(false)
+          return
+        } catch (err) {
+          if (cancelado) return
+          // Último intento agotado → mostramos el error.
+          if (intento === MAX_INTENTOS) {
+            setErrorValidacion(err.message || 'No se pudo validar el link.')
+            setValidando(false)
+            return
+          }
+          // Si no, esperamos a que Supabase termine de crear la sesión y reintentamos.
+          await new Promise(r => setTimeout(r, ESPERA_MS))
+        }
+      }
     }
 
-    sheetsApi.auth.resetValidar(token)
-      .then(data => {
-        setTokenValido(true)
-        setUserInfo({ email: data.email, nombre: data.nombre })
-      })
-      .catch(err => {
-        setErrorValidacion(err.message || 'No se pudo validar el link.')
-      })
-      .finally(() => {
-        setValidando(false)
-      })
-  }, [token])
+    validar()
+    return () => { cancelado = true }
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -52,7 +66,7 @@ export default function ResetPasswordPage() {
 
     setLoading(true)
     try {
-      await sheetsApi.auth.resetConfirmar(token, form.password)
+      await sheetsApi.auth.resetConfirmar(undefined, form.password)
       setDone(true)
     } catch (err) {
       setError(err.message || 'No se pudo actualizar la contraseña.')
