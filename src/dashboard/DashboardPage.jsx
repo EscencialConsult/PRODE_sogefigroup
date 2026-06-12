@@ -4,10 +4,11 @@
  * ✅ INTEGRADO CON PredictModal
  * ✅ INTEGRADO CON Loading OVERLAY
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AppShell from '../dashboard/AppShell.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBets } from '../hooks/useBets.jsx'
+import sheetsApi from '../services/sheetsApi.js'
 import { isBetPredictable, timeLeft } from '../utils/index.js'
 import { Link } from 'react-router-dom'
 import PredictModal from '../components/user/PredictModal.jsx'
@@ -160,10 +161,29 @@ export default function DashboardPage() {
   const [selectedBet, setSelectedBet] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // ✅ PUNTOS Y POSICIÓN REALES (ranking global acumulado)
+  const [miRanking, setMiRanking]   = useState(null)   // { posicion, puntos_totales } | null
+  const [rankingLoading, setRankingLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelado = false
+    setRankingLoading(true)
+    sheetsApi.predicciones.tablaGlobal()
+      .then(r => { if (!cancelado) setMiRanking(r.mi_posicion || null) })
+      .catch(() => { if (!cancelado) setMiRanking(null) })
+      .finally(() => { if (!cancelado) setRankingLoading(false) })
+    return () => { cancelado = true }
+  }, [])
+
   const activeBets  = bets.filter(b => isBetPredictable(b))
   const liveBets    = bets.filter(b => b.partidos?.some(p => p.estado === 'en_vivo'))
   const myPredCount = Object.keys(predictions).length
   const nombre      = (user?.nombre || '').split(' ')[0].toUpperCase()
+
+  // Valores que se muestran en las tarjetas doradas.
+  // miRanking es null si el usuario todavía no participó en ninguna apuesta puntuable.
+  const puntosTotales = miRanking ? miRanking.puntos_totales : null
+  const posicion      = miRanking ? miRanking.posicion : null
 
   // ✅ FUNCIÓN PARA ABRIR EL MODAL
   const handlePredict = (bet) => {
@@ -270,10 +290,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-fade-in delay-1">
-          <StatCard label="Puntos totales" value="—" sub="Sin partidos finalizados" gold
+          <StatCard label="Puntos totales"
+            value={rankingLoading ? '…' : (puntosTotales != null ? puntosTotales : '—')}
+            sub={puntosTotales != null ? 'En todas las apuestas' : 'Sin puntos todavía'} gold
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
           />
-          <StatCard label="Posición" value="—" sub="Ranking global" gold
+          <StatCard label="Posición"
+            value={rankingLoading ? '…' : (posicion != null ? `#${posicion}` : '—')}
+            sub="Ranking global" gold
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>}
           />
           <StatCard label="Predicciones" value={myPredCount || '—'} sub="Cargadas hasta ahora"
