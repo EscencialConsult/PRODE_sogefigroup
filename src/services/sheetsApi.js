@@ -881,6 +881,7 @@ const predicciones = {
           aciertos_clasificado: 0,
           apuestas_participadas: 0,
           apuestas_ids: new Set(),
+          primera_apuesta: null, // fecha de la 1ª predicción histórica → desempate
         }
 
         actual.puntos_totales += Number(u.puntos_totales || 0)
@@ -891,27 +892,46 @@ const predicciones = {
         actual.aciertos_clasificado += Number(u.aciertos_clasificado || 0)
         actual.apuestas_ids.add(candidatas[idx].id)
         actual.apuestas_participadas = actual.apuestas_ids.size
+        // Guardar la fecha más temprana entre todas sus apuestas (la vista
+        // ranking_apuestas expone fecha_apuesta = MIN(fecha_registro) del usuario)
+        if (u.fecha_apuesta) {
+          if (!actual.primera_apuesta || u.fecha_apuesta < actual.primera_apuesta) {
+            actual.primera_apuesta = u.fecha_apuesta
+          }
+        }
         acumulado.set(id, actual)
       })
     })
+
+    // Desempate: ante igualdad de puntos, gana quien apostó PRIMERO
+    // (misma regla que las vistas SQL). Si no hubiera fecha, va al final.
+    const tiempoPrimeraApuesta = (u) =>
+      u.primera_apuesta ? new Date(u.primera_apuesta).getTime() : Infinity
 
     const rankingArr = Array.from(acumulado.values())
       .map(u => ({ ...u, apuestas_ids: Array.from(u.apuestas_ids) }))
       .sort((a, b) =>
         b.puntos_totales - a.puntos_totales ||
+        tiempoPrimeraApuesta(a) - tiempoPrimeraApuesta(b) ||   // ← DESEMPATE: apostó primero
         b.apuestas_participadas - a.apuestas_participadas ||
         String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es')
       )
 
+    // Posición: dos usuarios comparten puesto solo si empatan en puntos Y en
+    // fecha de primera apuesta (mismo criterio que el RANK() de la vista SQL).
+    // Así el desempate por "apostó primero" se refleja en el número de posición.
     let posicionAnterior = 0
     let puntosAnterior = null
+    let tiempoAnterior = null
     rankingArr.forEach((u, idx) => {
-      if (puntosAnterior === u.puntos_totales) {
+      const tiempo = tiempoPrimeraApuesta(u)
+      if (puntosAnterior === u.puntos_totales && tiempoAnterior === tiempo) {
         u.posicion = posicionAnterior
       } else {
         u.posicion = idx + 1
         posicionAnterior = u.posicion
         puntosAnterior = u.puntos_totales
+        tiempoAnterior = tiempo
       }
     })
 
