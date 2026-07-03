@@ -92,9 +92,11 @@ function BetCard({bet,predsMap,onPredict}){
           {bet.partidos.slice(0,3).map(m=>{
             const pred=predsMap?.[m.id]
             const fin=m.estado==='finalizado'||m.estado==='en_vivo'
+            const nombreLocal = (!m.equipo_local || m.equipo_local === 'TBD' || m.codigo_local === 'TBD') ? 'Por confirmar' : m.equipo_local
+            const nombreVisitante = (!m.equipo_visitante || m.equipo_visitante === 'TBD' || m.codigo_visitante === 'TBD') ? 'Por confirmar' : m.equipo_visitante
             return(
               <div key={m.id} style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',gap:'.6rem',padding:'.55rem .75rem',borderRadius:9,background:pred?'rgba(235,195,43,.05)':'rgba(12,24,43,.02)',border:pred?'1px solid rgba(235,195,43,.2)':'1px solid #f0eadb'}}>
-                <span style={{fontWeight:500,fontSize:'.8rem',color:'#0c182b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipo_local}</span>
+                <span style={{fontWeight:500,fontSize:'.8rem',color:'#0c182b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nombreLocal}</span>
                 <div style={{textAlign:'center',minWidth:60}}>
                   {pred?(
                     <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',color:'#c99f16',letterSpacing:'.04em'}}>{pred.pred_local} - {pred.pred_visitante}</span>
@@ -105,7 +107,7 @@ function BetCard({bet,predsMap,onPredict}){
                     <div style={{fontSize:'.6rem',color:'#5f6e8a',marginTop:1}}>Real: {m.goles_local}-{m.goles_visitante}</div>
                   )}
                 </div>
-                <span style={{fontWeight:500,fontSize:'.8rem',color:'#0c182b',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.equipo_visitante}</span>
+                <span style={{fontWeight:500,fontSize:'.8rem',color:'#0c182b',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nombreVisitante}</span>
               </div>
             )
           })}

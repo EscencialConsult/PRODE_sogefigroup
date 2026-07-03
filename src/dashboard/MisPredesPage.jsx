@@ -202,7 +202,7 @@ export default function MisPredesPage(){
         {/* Filtros */}
         <div className="din" style={{display:'flex',gap:'.3rem',marginBottom:'1.4rem',animationDelay:'80ms'}}>
           {[{k:'todas',l:'Todas'},{k:'con',l:`Con predicción (${betsConPred.length})`},{k:'sin',l:`Sin predicción (${betsSinPred.length})`}].map(({k,l})=>(
-            <button key={k} onClick={()=>setFiltro(k)} style={{padding:'.34rem .82rem',borderRadius:99,border:'none',fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:'.72rem',textTransform:'uppercase',letterSpacing:'.05em',cursor:'pointer',transition:'all .15s',background:filtro===k?'#0c182b':'#fff',color:filtro===k?'#ebc32b':'#5f6e8a',border:filtro===k?'1px solid transparent':'1px solid #f0eadb',boxShadow:filtro===k?'0 2px 8px rgba(12,24,43,.18)':'none'}}>
+            <button key={k} onClick={()=>setFiltro(k)} style={{padding:'.34rem .82rem',borderRadius:99,fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:'.72rem',textTransform:'uppercase',letterSpacing:'.05em',cursor:'pointer',transition:'all .15s',background:filtro===k?'#0c182b':'#fff',color:filtro===k?'#ebc32b':'#5f6e8a',border:filtro===k?'1px solid transparent':'1px solid #f0eadb',boxShadow:filtro===k?'0 2px 8px rgba(12,24,43,.18)':'none'}}>
               {l}
             </button>
           ))}
